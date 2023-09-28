@@ -7,29 +7,61 @@ const prisma = new PrismaClient();
 
 app.use(express.json());
 
-app.get("/movies", async (_, res) => {
-    const movies = await prisma.movie.findMany({
-        orderBy: {
-            title: "asc"
-        },
-        include: {
-            languages: true,
-            genres: true,
-        },
-    });
-    const totalMovies = movies.length;
+app.get("/movies", async (req, res) => {
+    const { sort, language } = req.query;
 
-    let totalDuration = 0;
-    for (let movie of movies) {
-        totalDuration += movie.duration;
+    let orderBy = undefined;
+    if (sort === "title") {
+        orderBy = {
+            title: "asc",
+        };
+    } else if (sort === "release_date") {
+        orderBy = {
+            release_date: "asc",
+        };
+    } else if (sort === "id") {
+        orderBy = {
+            id: "asc",
+        };
     }
-    const averageDuration = totalMovies > 0 ? totalDuration / totalMovies : 0;
 
-    res.json({
-        totalMovies,
-        averageDuration,
-        movies
-    });
+    let where = undefined;
+    if (language) {
+        where = {
+            languages: {
+                name: {
+                    equals: language,
+                    mode: "insensitive"
+                }
+            }
+        };
+    }
+
+    try {
+        const movies = await prisma.movie.findMany({
+            where: where,
+            orderBy: orderBy,
+            include: {
+                languages: true,
+                genres: true,
+            },
+        });
+        const totalMovies = movies.length;
+
+        let totalDuration = 0;
+        for (const movie of movies) {
+            totalDuration += movie.duration;
+        }
+        const averageDuration = totalMovies > 0 ? totalDuration / totalMovies : 0;
+
+        res.json({
+            totalMovies,
+            averageDuration,
+            movies
+        });
+    } catch (error) {
+        res.status(500).send({ message: "There was a problem trying to search movies" });
+    }
 });
 
 app.put("/movies/:id", async (req, res) => {
